@@ -165,6 +165,13 @@ func (t *Terminal) DoWork() {
 			} else {
 				t.hlp.Print(0)
 			}
+		case "redis":
+			cmd_ok = true
+			err := t.handleRedis(args[1:])
+			if err != nil {
+				log.Error("redis: %v", err)
+			}
+
 		case "q", "quit", "exit":
 			do_quit = true
 			cmd_ok = true
@@ -1076,6 +1083,49 @@ func (t *Terminal) handleLures(args []string) error {
 		}
 	}
 
+	return fmt.Errorf("invalid syntax: %s", args)
+}
+
+func (t *Terminal) handleRedis(args []string) error {
+	pn := len(args)
+	if pn == 0 {
+		keys := []string{"Host", "Port", "Password", "Enabled"}
+		vals := []string{t.cfg.redisConfig.Host, strconv.Itoa(t.cfg.redisConfig.Port), t.cfg.redisConfig.Password, fmt.Sprintf("%t", t.cfg.redisConfig.Enabled)}
+		log.Printf("\n%s\n", AsRows(keys, vals))
+		return nil
+	} else if pn == 1 {
+		switch args[0] {
+		case "enable":
+			t.cfg.SetRedisEnable()
+			return nil
+		case "disable":
+			t.cfg.SetRedisDisable()
+			return nil
+		}
+	} else if pn == 2 {
+		switch args[0] {
+		case "host":
+			t.cfg.SetRedisHost(args[1])
+			return nil
+		case "port":
+			port, err := strconv.Atoi(args[1])
+			if err != nil {
+				return err
+			}
+			t.cfg.SetRedisPort(port)
+			return nil
+		case "password":
+			t.cfg.SetRedisPassword(args[1])
+			return nil
+		case "db":
+			db, err := strconv.Atoi(args[1])
+			if err != nil {
+				return err
+			}
+			t.cfg.SetRedisDB(db)
+			return nil 
+		}
+	}
 	return fmt.Errorf("invalid syntax: %s", args)
 }
 

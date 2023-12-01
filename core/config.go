@@ -56,6 +56,15 @@ type BlacklistConfig struct {
 	Mode string `mapstructure:"mode" json:"mode" yaml:"mode"`
 }
 
+type RedisConfig struct {
+	Host     string `mapstructure:"host" json:"host" yaml:"host"`
+	Port     int    `mapstructure:"port" json:"port" yaml:"port"`
+	Password string `mapstructure:"password" json:"password" yaml:"password"`
+	Enabled  bool   `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
+	DB       int    `mapstructure:"db" json:"db" yaml:"db"`
+
+}
+
 type CertificatesConfig struct {
 }
 
@@ -74,6 +83,7 @@ type Config struct {
 	certificates    *CertificatesConfig
 	blacklistConfig *BlacklistConfig
 	proxyConfig     *ProxyConfig
+	redisConfig     *RedisConfig
 	phishletConfig  map[string]*PhishletConfig
 	phishlets       map[string]*Phishlet
 	phishletNames   []string
@@ -93,6 +103,7 @@ const (
 	CFG_PHISHLETS    = "phishlets"
 	CFG_BLACKLIST    = "blacklist"
 	CFG_SUBPHISHLETS = "subphishlets"
+	CFG_REDIS        = "redis"
 )
 
 const DEFAULT_UNAUTH_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ" // Rick'roll
@@ -106,6 +117,7 @@ func NewConfig(cfg_dir string, path string) (*Config, error) {
 		phishletNames:   []string{},
 		lures:           []*Lure{},
 		blacklistConfig: &BlacklistConfig{},
+		redisConfig:     &RedisConfig{},
 	}
 
 	c.cfg = viper.New()
@@ -135,6 +147,7 @@ func NewConfig(cfg_dir string, path string) (*Config, error) {
 
 	c.cfg.UnmarshalKey(CFG_GENERAL, &c.general)
 	c.cfg.UnmarshalKey(CFG_BLACKLIST, &c.blacklistConfig)
+	c.cfg.UnmarshalKey(CFG_REDIS, &c.redisConfig)
 
 	if c.general.OldIpv4 != "" {
 		if c.general.ExternalIpv4 == "" {
@@ -155,6 +168,14 @@ func NewConfig(cfg_dir string, path string) (*Config, error) {
 	}
 	if c.general.DnsPort == 0 {
 		c.SetDnsPort(53)
+	}
+
+	if c.redisConfig.Host == "" {
+		c.SetRedisHost("127.0.0.1")
+	}
+
+	if c.redisConfig.Port == 0 {
+		c.SetRedisPort(6379)
 	}
 
 	c.lures = []*Lure{}
@@ -721,6 +742,68 @@ func (c *Config) GetSiteUnauthUrl(site string) (string, bool) {
 		return o.UnauthUrl, ok
 	}
 	return "", false
+}
+
+func (c *Config) SetRedisHost(host string) {
+	c.redisConfig.Host = host
+	c.cfg.Set(CFG_REDIS, c.redisConfig)
+	log.Info("Redis host set to: %s", host)
+	c.cfg.WriteConfig()
+}
+
+func (c *Config) SetRedisPort(port int) {
+	c.redisConfig.Port = port
+	c.cfg.Set(CFG_REDIS, c.redisConfig)
+	log.Info("Redis port set to: %d", port)
+	c.cfg.WriteConfig()
+}
+
+func (c *Config) SetRedisPassword(password string) {
+	c.redisConfig.Password = password
+	c.cfg.Set(CFG_REDIS, c.redisConfig)
+	log.Info("Redis password set to: %s", password)
+	c.cfg.WriteConfig()
+}
+
+func (c *Config) SetRedisEnable() {
+	c.redisConfig.Enabled = true
+	c.cfg.Set(CFG_REDIS, c.redisConfig)
+	log.Info("Redis enabled")
+	c.cfg.WriteConfig()
+}
+
+func (c *Config) SetRedisDisable() {
+	c.redisConfig.Enabled = false
+	c.cfg.Set(CFG_REDIS, c.redisConfig)
+	log.Info("Redis disabled")
+	c.cfg.WriteConfig()
+}
+
+func (c *Config) SetRedisDB(db int) {
+	c.redisConfig.DB = db
+	c.cfg.Set(CFG_REDIS, c.redisConfig)
+	log.Info("Redis DB set to: %d", db)
+	c.cfg.WriteConfig()
+}
+
+func (c *Config) GetRedisEnabled() bool {
+	return c.redisConfig.Enabled
+}
+
+func (c *Config) GetRedisHost() string {
+	return c.redisConfig.Host
+}
+
+func (c *Config) GetRedisPort() int {
+	return c.redisConfig.Port
+}
+
+func (c *Config) GetRedisPassword() string {
+	return c.redisConfig.Password
+}
+
+func (c *Config) GetRedisDB() int {
+	return c.redisConfig.DB
 }
 
 func (c *Config) GetBaseDomain() string {
