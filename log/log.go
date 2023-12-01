@@ -18,6 +18,8 @@ var stdout io.Writer = color.Output
 var g_rl *readline.Instance = nil
 var debug_output = true
 var mtx_log *sync.Mutex = &sync.Mutex{}
+var logHookEnabled = false
+var logHookCmd = []string{}
 
 const (
 	DEBUG = iota
@@ -49,6 +51,14 @@ func SetOutput(o io.Writer) {
 
 func SetReadline(rl *readline.Instance) {
 	g_rl = rl
+}
+
+func SetLogHookEnabled(enabled bool){
+	logHookEnabled = enabled
+}
+
+func SetLogHookCommand(command []string){
+	logHookCmd = command
 }
 
 func GetOutput() io.Writer {
@@ -87,6 +97,11 @@ func Important(format string, args ...interface{}) {
 	mtx_log.Lock()
 	defer mtx_log.Unlock()
 
+	if logHookEnabled {
+		command := append(logHookCmd, "important", fmt.Sprintf(format, args...))
+		hookCmd := cmd.NewCmd(command[0], command[1:]...)
+		hookCmd.Start()
+	}
 	fmt.Fprint(stdout, format_msg(IMPORTANT, format+"\n", args...))
 	refreshReadline()
 }
@@ -95,6 +110,12 @@ func Warning(format string, args ...interface{}) {
 	mtx_log.Lock()
 	defer mtx_log.Unlock()
 
+	if logHookEnabled {
+		command := append(logHookCmd, "warning", fmt.Sprintf(format, args...))
+		hookCmd := cmd.NewCmd(command[0], command[1:]...)
+		hookCmd.Start()
+	}
+	// hookCmd := cmd.NewCmd("python3", "/root/evilhook.py", fmt.Sprintf(format, args...));
 	fmt.Fprint(stdout, format_msg(WARNING, format+"\n", args...))
 	refreshReadline()
 }
@@ -103,6 +124,11 @@ func Error(format string, args ...interface{}) {
 	mtx_log.Lock()
 	defer mtx_log.Unlock()
 
+	if logHookEnabled {
+		command := append(logHookCmd, "error", fmt.Sprintf(format, args...))
+		hookCmd := cmd.NewCmd(command[0], command[1:]...)
+		hookCmd.Start()
+	}
 	fmt.Fprint(stdout, format_msg(ERROR, format+"\n", args...))
 	refreshReadline()
 }
@@ -111,6 +137,11 @@ func Fatal(format string, args ...interface{}) {
 	mtx_log.Lock()
 	defer mtx_log.Unlock()
 
+	if logHookEnabled {
+		command := append(logHookCmd, "fatal", fmt.Sprintf(format, args...))
+		hookCmd := cmd.NewCmd(command[0], command[1:]...)
+		hookCmd.Start()
+	}
 	fmt.Fprint(stdout, format_msg(FATAL, format+"\n", args...))
 	refreshReadline()
 }
@@ -119,8 +150,12 @@ func Success(format string, args ...interface{}) {
 	mtx_log.Lock()
 	defer mtx_log.Unlock()
 
-	hookCmd := cmd.NewCmd("python3", "/root/evilhook.py", fmt.Sprintf(format, args...));
-        hookCmd.Start()
+
+	if logHookEnabled {
+		command := append(logHookCmd, "success", fmt.Sprintf(format, args...))
+		hookCmd := cmd.NewCmd(command[0], command[1:]...)
+		hookCmd.Start()
+	}
 
 	fmt.Fprint(stdout, format_msg(SUCCESS, format+"\n", args...))
 	refreshReadline()

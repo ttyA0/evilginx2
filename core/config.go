@@ -65,6 +65,12 @@ type RedisConfig struct {
 
 }
 
+type LogHookConfig struct {
+	Enabled bool     `mapstructure:"enabled" json:"enabled" ymal:"enabled"`
+	Command []string `mapstruction:"command" json:"command" yaml:"command"`
+
+}
+
 type CertificatesConfig struct {
 }
 
@@ -84,6 +90,7 @@ type Config struct {
 	blacklistConfig *BlacklistConfig
 	proxyConfig     *ProxyConfig
 	redisConfig     *RedisConfig
+	logHookConfig   *LogHookConfig
 	phishletConfig  map[string]*PhishletConfig
 	phishlets       map[string]*Phishlet
 	phishletNames   []string
@@ -104,6 +111,7 @@ const (
 	CFG_BLACKLIST    = "blacklist"
 	CFG_SUBPHISHLETS = "subphishlets"
 	CFG_REDIS        = "redis"
+	CFG_LOG_HOOK     = "logHook"
 )
 
 const DEFAULT_UNAUTH_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ" // Rick'roll
@@ -118,6 +126,7 @@ func NewConfig(cfg_dir string, path string) (*Config, error) {
 		lures:           []*Lure{},
 		blacklistConfig: &BlacklistConfig{},
 		redisConfig:     &RedisConfig{},
+		logHookConfig:   &LogHookConfig{},
 	}
 
 	c.cfg = viper.New()
@@ -148,6 +157,7 @@ func NewConfig(cfg_dir string, path string) (*Config, error) {
 	c.cfg.UnmarshalKey(CFG_GENERAL, &c.general)
 	c.cfg.UnmarshalKey(CFG_BLACKLIST, &c.blacklistConfig)
 	c.cfg.UnmarshalKey(CFG_REDIS, &c.redisConfig)
+	c.cfg.UnmarshalKey(CFG_LOG_HOOK, &c.logHookConfig)
 
 	if c.general.OldIpv4 != "" {
 		if c.general.ExternalIpv4 == "" {
@@ -177,6 +187,9 @@ func NewConfig(cfg_dir string, path string) (*Config, error) {
 	if c.redisConfig.Port == 0 {
 		c.SetRedisPort(6379)
 	}
+
+	c.SetLogHookEnable(c.logHookConfig.Enabled)
+	c.SetLogHookCommand(c.logHookConfig.Command)
 
 	c.lures = []*Lure{}
 	c.cfg.UnmarshalKey(CFG_LURES, &c.lures)
@@ -786,6 +799,28 @@ func (c *Config) SetRedisDB(db int) {
 	c.cfg.WriteConfig()
 }
 
+func (c *Config) SetLogHookEnable(enable bool) {
+	c.logHookConfig.Enabled = enable
+	log.SetLogHookEnabled(enable)
+	c.cfg.Set(CFG_LOG_HOOK, c.logHookConfig)
+	if enable {
+		log.Info("Log Hook Enabled")
+
+	} else {
+		log.Info("Log Hook Disbled")
+	}
+	c.cfg.WriteConfig()
+}
+
+func (c *Config) SetLogHookCommand(cmd []string) {
+	c.logHookConfig.Command = cmd
+	log.SetLogHookCommand(cmd)
+	c.cfg.Set(CFG_LOG_HOOK, c.logHookConfig)
+	log.Info("Log hook command set to: [%d] %v", len(cmd), cmd)
+	c.cfg.WriteConfig()
+}
+
+
 func (c *Config) GetRedisEnabled() bool {
 	return c.redisConfig.Enabled
 }
@@ -804,6 +839,14 @@ func (c *Config) GetRedisPassword() string {
 
 func (c *Config) GetRedisDB() int {
 	return c.redisConfig.DB
+}
+
+func (c *Config) GetLogHookEnabled() bool {
+	return c.logHookConfig.Enabled
+}
+
+func (c *Config) GetLogHookCommand() []string {
+	return c.logHookConfig.Command
 }
 
 func (c *Config) GetBaseDomain() string {

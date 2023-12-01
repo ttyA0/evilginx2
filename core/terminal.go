@@ -171,6 +171,12 @@ func (t *Terminal) DoWork() {
 			if err != nil {
 				log.Error("redis: %v", err)
 			}
+		case "loghook":
+			cmd_ok = true
+			err := t.handleLogHook(args[1:])
+			if err != nil {
+				log.Error("loghook: %v", err)
+			}
 
 		case "q", "quit", "exit":
 			do_quit = true
@@ -1129,6 +1135,31 @@ func (t *Terminal) handleRedis(args []string) error {
 	return fmt.Errorf("invalid syntax: %s", args)
 }
 
+func (t *Terminal) handleLogHook(args []string) error {
+	pn := len(args)
+	if pn == 0 {
+		keys := []string{"Command", "Enabled"}
+		vals := []string{fmt.Sprintf("%v", t.cfg.logHookConfig.Command), fmt.Sprintf("%t", t.cfg.logHookConfig.Enabled)}
+		log.Printf("\n%s\n", AsRows(keys, vals))
+		return nil
+	} else if pn == 1 {
+		switch args[0] {
+		case "enable":
+			t.cfg.SetLogHookEnable(true)
+			return nil
+		case "disable":
+			t.cfg.SetLogHookEnable(false)
+			return nil
+		}
+	} else {
+		switch args[0] {
+		case "command":
+			t.cfg.SetLogHookCommand(args[1:])
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid syntax: %s", args)
+}
 func (t *Terminal) monitorLurePause() {
 	var pausedLures map[string]int64
 	pausedLures = make(map[string]int64)
