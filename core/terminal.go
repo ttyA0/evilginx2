@@ -1139,7 +1139,7 @@ func (t *Terminal) handleLogHook(args []string) error {
 	pn := len(args)
 	if pn == 0 {
 		keys := []string{"Command", "Enabled"}
-		vals := []string{fmt.Sprintf("%v", t.cfg.logHookConfig.Command), fmt.Sprintf("%t", t.cfg.logHookConfig.Enabled)}
+		vals := []string{fmt.Sprintf("%#v", t.cfg.logHookConfig.Command), fmt.Sprintf("%t", t.cfg.logHookConfig.Enabled)}
 		log.Printf("\n%s\n", AsRows(keys, vals))
 		return nil
 	} else if pn == 1 {
