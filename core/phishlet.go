@@ -787,7 +787,7 @@ func (p *Phishlet) GetLureUrl(path string) (string, error) {
 			}
 		}
 	}
-	ret = "https://" + host + path
+	ret = "https://" + host + p.cfg.GetPhishUrlPort() + path
 	return ret, nil
 }
 

@@ -750,6 +750,14 @@ func (c *Config) GetSiteDomain(site string) (string, bool) {
 	return "", false
 }
 
+func (c *Config) GetPhishUrlPort() string {
+	if c.GetHttpsPort() == 443 {
+		return ""
+	} else {
+		return fmt.Sprintf(":%d", c.GetHttpsPort())
+	}
+}
+
 func (c *Config) GetSiteUnauthUrl(site string) (string, bool) {
 	if o, ok := c.phishletConfig[site]; ok {
 		return o.UnauthUrl, ok

